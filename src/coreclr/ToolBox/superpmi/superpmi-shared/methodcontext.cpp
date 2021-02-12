@@ -2524,21 +2524,15 @@ void MethodContext::recGetArgType(CORINFO_SIG_INFO*       sig,
     // TODO: verify that the above comment is still true (that some of the fields of incoming argument `sig` contain garbage), or
     // can we store the whole thing and use StoreAgnostic_CORINFO_SIG_INFO()?
 
-    key.flags      = (DWORD)sig->flags;
-    key.numArgs    = (DWORD)sig->numArgs;
-
-    if ((sig->cbSig == 0) && (sig->pSig != nullptr))
-    {
-        // In this case, assume it is crossgen2 and pSig is actually a "handle" (some kind of pointer
-        // to an object), not a pointer to an array of signature bytes. Store the handle itself.
-        key.sigHandle = CastHandle((void*)sig->pSig);
-    }
+    key.flags           = (DWORD)sig->flags;
+    key.numArgs         = (DWORD)sig->numArgs;
 
     SpmiRecordsHelper::StoreAgnostic_CORINFO_SIG_INST_HandleArray(sig->sigInst.classInstCount, sig->sigInst.classInst, SigInstHandleMap, &key.sigInst_classInstCount, &key.sigInst_classInst_Index);
     SpmiRecordsHelper::StoreAgnostic_CORINFO_SIG_INST_HandleArray(sig->sigInst.methInstCount, sig->sigInst.methInst, SigInstHandleMap, &key.sigInst_methInstCount, &key.sigInst_methInst_Index);
 
-    key.scope = CastHandle(sig->scope);
-    key.args  = CastHandle(args);
+    key.methodSignature = CastPointer(sig->methodSignature);
+    key.scope           = CastHandle(sig->scope);
+    key.args            = CastHandle(args);
 
     Agnostic_GetArgType_Value value;
     value.vcTypeRet     = CastHandle(*vcTypeRet);
@@ -2550,12 +2544,11 @@ void MethodContext::recGetArgType(CORINFO_SIG_INFO*       sig,
 }
 void MethodContext::dmpGetArgType(const Agnostic_GetArgType_Key& key, const Agnostic_GetArgType_Value& value)
 {
-    printf("GetArgType key flg-%08X na-%u sigHnd-%016llX %s %s scp-%016llX arg-%016llX",
+    printf("GetArgType key flg-%08X na-%u %s %s msig-%016llX scp-%016llX arg-%016llX",
         key.flags, key.numArgs,
-        key.sigHandle,
         SpmiDumpHelper::DumpAgnostic_CORINFO_SIG_INST_Element("", "cc", "ci", key.sigInst_classInstCount, key.sigInst_classInst_Index, SigInstHandleMap).c_str(),
         SpmiDumpHelper::DumpAgnostic_CORINFO_SIG_INST_Element("", "mc", "mi", key.sigInst_methInstCount, key.sigInst_methInst_Index, SigInstHandleMap).c_str(),
-        key.scope, key.args);
+        key.methodSignature, key.scope, key.args);
     printf(", value result(cit)-%u(%s) vcType-%016llX excp-%08X", value.result, toString((CorInfoTypeWithMod)value.result), value.vcTypeRet, value.exceptionCode);
 }
 CorInfoTypeWithMod MethodContext::repGetArgType(CORINFO_SIG_INFO*       sig,
@@ -2572,16 +2565,9 @@ CorInfoTypeWithMod MethodContext::repGetArgType(CORINFO_SIG_INFO*       sig,
 
     key.flags                  = (DWORD)sig->flags;
     key.numArgs                = (DWORD)sig->numArgs;
-
-    if ((sig->cbSig == 0) && (sig->pSig != nullptr))
-    {
-        // In this case, assume it is crossgen2 and pSig is actually a "handle" (some kind of pointer
-        // to an object), not a pointer to an array of signature bytes. Store the handle itself.
-        key.sigHandle = CastHandle((void*)sig->pSig);
-    }
-
     key.sigInst_classInstCount = (DWORD)sig->sigInst.classInstCount;
     key.sigInst_methInstCount  = (DWORD)sig->sigInst.methInstCount;
+    key.methodSignature        = CastPointer(sig->methodSignature);
     key.scope                  = CastHandle(sig->scope);
     key.args                   = CastHandle(args);
 
@@ -2674,15 +2660,9 @@ void MethodContext::recGetArgClass(CORINFO_SIG_INFO*       sig,
     SpmiRecordsHelper::StoreAgnostic_CORINFO_SIG_INST_HandleArray(sig->sigInst.classInstCount, sig->sigInst.classInst, SigInstHandleMap, &key.sigInst_classInstCount, &key.sigInst_classInst_Index);
     SpmiRecordsHelper::StoreAgnostic_CORINFO_SIG_INST_HandleArray(sig->sigInst.methInstCount, sig->sigInst.methInst, SigInstHandleMap, &key.sigInst_methInstCount, &key.sigInst_methInst_Index);
 
-    key.scope = CastHandle(sig->scope);
-    key.args  = CastHandle(args);
-
-    if ((sig->cbSig == 0) && (sig->pSig != nullptr))
-    {
-        // In this case, assume it is crossgen2 and pSig is actually a "handle" (some kind of pointer
-        // to an object), not a pointer to an array of signature bytes. Store the handle itself.
-        key.sigHandle = CastHandle((void*)sig->pSig);
-    }
+    key.methodSignature = CastPointer(sig->methodSignature);
+    key.scope           = CastHandle(sig->scope);
+    key.args            = CastHandle(args);
 
     Agnostic_GetArgClass_Value value;
     value.result        = CastHandle(result);
@@ -2693,10 +2673,10 @@ void MethodContext::recGetArgClass(CORINFO_SIG_INFO*       sig,
 }
 void MethodContext::dmpGetArgClass(const Agnostic_GetArgClass_Key& key, const Agnostic_GetArgClass_Value& value)
 {
-    printf("GetArgClass key %s %s scp-%016llX args-%016llX sigHnd-%016llX",
+    printf("GetArgClass key %s %s msig-%016llX scp-%016llX args-%016llX",
         SpmiDumpHelper::DumpAgnostic_CORINFO_SIG_INST_Element("", "cc", "ci", key.sigInst_classInstCount, key.sigInst_classInst_Index, SigInstHandleMap).c_str(),
         SpmiDumpHelper::DumpAgnostic_CORINFO_SIG_INST_Element("", "mc", "mi", key.sigInst_methInstCount, key.sigInst_methInst_Index, SigInstHandleMap).c_str(),
-        key.scope, key.args, key.sigHandle);
+        key.methodSignature, key.scope, key.args);
     printf(", value %016llX excp-%08X", value.result, value.exceptionCode);
 }
 CORINFO_CLASS_HANDLE MethodContext::repGetArgClass(CORINFO_SIG_INFO*       sig,
@@ -2712,15 +2692,9 @@ CORINFO_CLASS_HANDLE MethodContext::repGetArgClass(CORINFO_SIG_INFO*       sig,
 
     key.sigInst_classInstCount = (DWORD)sig->sigInst.classInstCount;
     key.sigInst_methInstCount  = (DWORD)sig->sigInst.methInstCount;
+    key.methodSignature        = CastPointer(sig->methodSignature);
     key.scope                  = CastHandle(sig->scope);
     key.args                   = CastHandle(args);
-
-    if ((sig->cbSig == 0) && (sig->pSig != nullptr))
-    {
-        // In this case, assume it is crossgen2 and pSig is actually a "handle" (some kind of pointer
-        // to an object), not a pointer to an array of signature bytes. Store the handle itself.
-        key.sigHandle = CastHandle((void*)sig->pSig);
-    }
 
     key.sigInst_classInst_Index = SpmiRecordsHelper::ContainsHandleMap(sig->sigInst.classInstCount, sig->sigInst.classInst, SigInstHandleMap);
     key.sigInst_methInst_Index  = SpmiRecordsHelper::ContainsHandleMap(sig->sigInst.methInstCount, sig->sigInst.methInst, SigInstHandleMap);
@@ -3125,6 +3099,23 @@ CORINFO_METHOD_HANDLE MethodContext::repGetUnboxedEntry(CORINFO_METHOD_HANDLE ft
     }
 
     return (CORINFO_METHOD_HANDLE)(result.A);
+}
+
+void MethodContext::recGetDefaultComparerClass(CORINFO_CLASS_HANDLE cls, CORINFO_CLASS_HANDLE result)
+{
+    if (GetDefaultComparerClass == nullptr)
+        GetDefaultComparerClass = new LightWeightMap<DWORDLONG, DWORDLONG>();
+
+    GetDefaultComparerClass->Add(CastHandle(cls), CastHandle(result));
+}
+void MethodContext::dmpGetDefaultComparerClass(DWORDLONG key, DWORDLONG value)
+{
+    printf("GetDefaultComparerClass key cls-%016llX, value cls-%016llX", key, value);
+}
+CORINFO_CLASS_HANDLE MethodContext::repGetDefaultComparerClass(CORINFO_CLASS_HANDLE cls)
+{
+    CORINFO_CLASS_HANDLE result = (CORINFO_CLASS_HANDLE)GetDefaultComparerClass->Get(CastHandle(cls));
+    return result;
 }
 
 void MethodContext::recGetDefaultEqualityComparerClass(CORINFO_CLASS_HANDLE cls, CORINFO_CLASS_HANDLE result)
@@ -6548,6 +6539,10 @@ int MethodContext::dumpMethodIdentityInfoToBuffer(char* buff, int len, bool igno
         pInfo = &info;
     }
 
+    // Obtain the jit flags and ISA flags.
+    CORJIT_FLAGS corJitFlags;
+    repGetJitFlags(&corJitFlags, sizeof(corJitFlags));
+
     char* obuff = buff;
 
     // Add the Method Signature
@@ -6555,16 +6550,16 @@ int MethodContext::dumpMethodIdentityInfoToBuffer(char* buff, int len, bool igno
     buff += t;
     len -= t;
 
-    // Add Calling convention information, CorInfoOptions and CorInfoRegionKind
-    t = sprintf_s(buff, len, "CallingConvention: %d, CorInfoOptions: %d, CorInfoRegionKind: %d ", pInfo->args.callConv,
-                  pInfo->options, pInfo->regionKind);
+    // Add Calling convention information, CorInfoOptions, CorInfoRegionKind, jit flags, and ISA flags.
+    t = sprintf_s(buff, len, "CallingConvention: %d, CorInfoOptions: %d, CorInfoRegionKind: %d, JitFlags %016llx, ISA Flags %016llx", pInfo->args.callConv,
+                  pInfo->options, pInfo->regionKind, corJitFlags.GetFlagsRaw(), corJitFlags.GetInstructionSetFlagsRaw());
     buff += t;
     len -= t;
 
     // Hash the IL Code for this method and append it to the ID info
     char ilHash[MD5_HASH_BUFFER_SIZE];
     dumpMD5HashToBuffer(pInfo->ILCode, pInfo->ILCodeSize, ilHash, MD5_HASH_BUFFER_SIZE);
-    t = sprintf_s(buff, len, "ILCode Hash: %s", ilHash);
+    t = sprintf_s(buff, len, " ILCode Hash: %s", ilHash);
     buff += t;
     len -= t;
 

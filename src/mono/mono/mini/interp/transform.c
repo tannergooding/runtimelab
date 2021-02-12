@@ -1987,10 +1987,6 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 			interp_emit_ldelema (td, target_method->klass, check_class);
 			td->ip += 5;
 			return TRUE;
-#ifndef ENABLE_NETCORE
-		} else if (!strcmp (tm, "UnsafeMov") || !strcmp (tm, "UnsafeLoad")) {
-			*op = MINT_CALLRUN;
-#endif
 		} else if (!strcmp (tm, "Get")) {
 			interp_emit_ldelema (td, target_method->klass, NULL);
 			interp_emit_ldobj (td, m_class_get_element_class (target_method->klass));
@@ -2191,7 +2187,6 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 	} else if (((in_corlib && !strcmp (klass_name_space, "Internal.Runtime.CompilerServices"))
 				|| !strcmp (klass_name_space, "System.Runtime.CompilerServices"))
 			   && !strcmp (klass_name, "Unsafe")) {
-#ifdef ENABLE_NETCORE
 		if (!strcmp (tm, "AddByteOffset"))
 			*op = MINT_INTRINS_UNSAFE_ADD_BYTE_OFFSET;
 		else if (!strcmp (tm, "ByteOffset"))
@@ -2238,9 +2233,7 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 		} else if (!strcmp (tm, "InitBlockUnaligned")) {
 			*op = MINT_INITBLK;
 		}
-#endif
 	} else if (in_corlib && !strcmp (klass_name_space, "System.Runtime.CompilerServices") && !strcmp (klass_name, "RuntimeHelpers")) {
-#ifdef ENABLE_NETCORE
 		if (!strcmp (tm, "get_OffsetToStringData")) {
 			g_assert (csignature->param_count == 0);
 			int offset = MONO_STRUCT_OFFSET (MonoString, chars);
@@ -2296,7 +2289,6 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 
 			*op = has_refs ? MINT_LDC_I4_1 : MINT_LDC_I4_0;
 		}
-#endif
 	} else if (in_corlib && !strcmp (klass_name_space, "System") && !strcmp (klass_name, "RuntimeMethodHandle") && !strcmp (tm, "GetFunctionPointer") && csignature->param_count == 1) {
 		// We must intrinsify this method on interp so we don't return a pointer to native code entering interpreter
 		*op = MINT_LDFTN_DYNAMIC;
@@ -2391,34 +2383,46 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 			// Save arguments
 			store_local (td, localb);
 			store_local (td, locala);
-			// (a > b)
 			load_local (td, locala);
 			load_local (td, localb);
-			if (is_unsigned)
-				interp_add_ins (td, is_i8 ? MINT_CGT_UN_I8 : MINT_CGT_UN_I4);
+
+			if (t->type >= MONO_TYPE_BOOLEAN && t->type <= MONO_TYPE_U2)
+			{
+				interp_add_ins (td, MINT_SUB_I4);
+				td->sp -= 2;
+				interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
+				push_simple_type (td, STACK_TYPE_I4);
+				interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
+			}
 			else
-				interp_add_ins (td, is_i8 ? MINT_CGT_I8 : MINT_CGT_I4);
-			td->sp -= 2;
-			interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
-			push_simple_type (td, STACK_TYPE_I4);
-			interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
-			// (a < b)
-			load_local (td, locala);
-			load_local (td, localb);
-			if (is_unsigned)
-				interp_add_ins (td, is_i8 ? MINT_CLT_UN_I8 : MINT_CLT_UN_I4);
-			else
-				interp_add_ins (td, is_i8 ? MINT_CLT_I8 : MINT_CLT_I4);
-			td->sp -= 2;
-			interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
-			push_simple_type (td, STACK_TYPE_I4);
-			interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
-			// (a > b) - (a < b)
-			interp_add_ins (td, MINT_SUB_I4);
-			td->sp -= 2;
-			interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
-			push_simple_type (td, STACK_TYPE_I4);
-			interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
+			{
+				// (a > b)
+				if (is_unsigned)
+					interp_add_ins (td, is_i8 ? MINT_CGT_UN_I8 : MINT_CGT_UN_I4);
+				else
+					interp_add_ins (td, is_i8 ? MINT_CGT_I8 : MINT_CGT_I4);
+				td->sp -= 2;
+				interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
+				push_simple_type (td, STACK_TYPE_I4);
+				interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
+				// (a < b)
+				load_local (td, locala);
+				load_local (td, localb);
+				if (is_unsigned)
+					interp_add_ins (td, is_i8 ? MINT_CLT_UN_I8 : MINT_CLT_UN_I4);
+				else
+					interp_add_ins (td, is_i8 ? MINT_CLT_I8 : MINT_CLT_I4);
+				td->sp -= 2;
+				interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
+				push_simple_type (td, STACK_TYPE_I4);
+				interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
+				// (a > b) - (a < b)
+				interp_add_ins (td, MINT_SUB_I4);
+				td->sp -= 2;
+				interp_ins_set_sregs2 (td->last_ins, td->sp [0].local, td->sp [1].local);
+				push_simple_type (td, STACK_TYPE_I4);
+				interp_ins_set_dreg (td->last_ins, td->sp [-1].local);
+			}
 			td->ip += 5;
 			return TRUE;
 		} else {
@@ -2429,7 +2433,6 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 			}
 		}
 	}
-#ifdef ENABLE_NETCORE
 	else if (in_corlib &&
 			   !strcmp ("System.Runtime.CompilerServices", klass_name_space) &&
 			   !strcmp ("RuntimeFeature", klass_name)) {
@@ -2442,7 +2445,6 @@ interp_handle_intrinsics (TransformData *td, MonoMethod *target_method, MonoClas
 			!strcmp (tm, "get_IsSupported")) {
 		*op = MINT_LDC_I4_0;
 	}
-#endif
 
 	return FALSE;
 }
@@ -3073,14 +3075,6 @@ interp_transform_call (TransformData *td, MonoMethod *method, MonoMethod *target
 			SET_SIMPLE_TYPE (td->sp - 1, STACK_TYPE_I4);
 #endif
 		}
-
-#ifndef ENABLE_NETCORE
-		if (op == MINT_CALLRUN) {
-			interp_ins_set_dreg (td->last_ins, dreg);
-			td->last_ins->data [0] = get_data_item_index (td, target_method);
-			td->last_ins->data [1] = get_data_item_index (td, mono_method_signature_internal (target_method));
-		}
-#endif
 	} else if (!calli && !is_delegate_invoke && !is_virtual && mono_interp_jit_call_supported (target_method, csignature)) {
 		interp_add_ins (td, MINT_JIT_CALL);
 		interp_ins_set_dreg (td->last_ins, dreg);
@@ -5052,6 +5046,13 @@ generate_code (TransformData *td, MonoMethod *method, MonoMethodHeader *header, 
 				interp_add_conv (td, td->sp - 1, NULL, STACK_TYPE_I, MINT_CONV_I8_R8);
 #else
 				interp_add_conv (td, td->sp - 1, NULL, STACK_TYPE_I, MINT_CONV_I4_R8);
+#endif
+				break;
+			case STACK_TYPE_R4:
+#if SIZEOF_VOID_P == 8
+				interp_add_conv (td, td->sp - 1, NULL, STACK_TYPE_I, MINT_CONV_I8_R4);
+#else
+				interp_add_conv (td, td->sp - 1, NULL, STACK_TYPE_I, MINT_CONV_I4_R4);
 #endif
 				break;
 			case STACK_TYPE_I4:

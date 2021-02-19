@@ -347,7 +347,7 @@ namespace System.Text.Json.Serialization.Metadata
 
                 if (!IgnoreDefaultValuesOnRead)
                 {
-                    T value = default;
+                    T? value = default;
                     Set!(obj, value!);
                 }
             }
@@ -357,7 +357,7 @@ namespace System.Text.Json.Serialization.Metadata
                 state.Current.JsonPropertyInfo = this;
 
                 // Optimize for value converters by avoiding the extra call to TryRead.
-                T value = Converter.Read(ref reader, RuntimePropertyType!, Options);
+                T? value = Converter.Read(ref reader, RuntimePropertyType!, Options);
                 Set!(obj, value!);
 
                 state.Current.EndPropertyFast();
@@ -387,7 +387,7 @@ namespace System.Text.Json.Serialization.Metadata
 
                 if (!IgnoreDefaultValuesOnRead)
                 {
-                    T value = default;
+                    T? value = default;
                     Set!(obj, value!);
                 }
             }
@@ -395,7 +395,7 @@ namespace System.Text.Json.Serialization.Metadata
             {
                 state.Current.JsonPropertyInfo = this;
 
-                bool success = Converter.TryRead(ref reader, RuntimePropertyType!, Options, ref state, out T value);
+                bool success = Converter.TryRead(ref reader, RuntimePropertyType!, Options, ref state, out T? value);
                 Debug.Assert(success);
                 Set!(obj, value!);
 
